@@ -5,23 +5,28 @@ import (
 	"net/url"
 )
 
-func crawlPage(rawBaseURL, rawCurrentURL string, pages map[string]int) {
-	if !isSameDomain(rawBaseURL, rawCurrentURL) {
+func (cfg *config) crawlPage(rawCurrentURL string) {
+	defer cfg.wg.Done()
+
+	cfg.concurrencyControl <- struct{}{}
+	defer func() {
+		<-cfg.concurrencyControl
+	}()
+
+	if !isSameDomain(cfg.baseURL, rawCurrentURL) {
 		return
 	}
 
-	normalizedCurrentURL, err := normalizeURL(rawBaseURL, rawCurrentURL)
+	normalizedCurrentURL, err := normalizeURL(cfg.baseURL, rawCurrentURL)
 	if err != nil {
 		fmt.Printf("Could not normalize %v: %v\n", rawCurrentURL, err)
 		return
 	}
 
-	_, ok := pages[normalizedCurrentURL]
-	if ok {
-		pages[normalizedCurrentURL]++
+	isFirst := cfg.addPageVisit(normalizedCurrentURL)
+	if !isFirst {
 		return
 	}
-	pages[normalizedCurrentURL] = 1
 
 	normalizedURLWithHTTPS := fmt.Sprintf("https://%s", normalizedCurrentURL)
 
@@ -39,8 +44,13 @@ func crawlPage(rawBaseURL, rawCurrentURL string, pages map[string]int) {
 	}
 
 	for _, url := range urlsFromHTML {
-		fmt.Printf("crawling %v\n", url)
-		crawlPage(normalizedURLWithHTTPS, url, pages)
+		if cfg.isMaxPagesReached() {
+			break
+		}
+		fmt.Printf("scheduling crawl for %v\n", url)
+
+		cfg.wg.Add(1)
+		go cfg.crawlPage(url)
 	}
 
 }
@@ -59,5 +69,31 @@ func isSameDomain(base, url2 string) bool {
 	resolvedURL2 := baseURL.ResolveReference(parsedURL2)
 
 	return baseURL.Host == resolvedURL2.Host
+
+}
+
+func (cfg *config) addPageVisit(normalizedURL string) (isFirst bool) {
+	cfg.mu.Lock()
+	defer cfg.mu.Unlock()
+
+	if len(cfg.pages) >= cfg.maxPages {
+		return false
+	}
+
+	_, ok := cfg.pages[normalizedURL]
+	if ok {
+		cfg.pages[normalizedURL]++
+		return false
+	}
+	cfg.pages[normalizedURL] = 1
+	return true
+
+}
+
+func (cfg *config) isMaxPagesReached() bool {
+	cfg.mu.Lock()
+	defer cfg.mu.Unlock()
+
+	return len(cfg.pages) >= cfg.maxPages
 
 }
