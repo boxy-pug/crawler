@@ -6,14 +6,21 @@ import (
 	"strings"
 )
 
-func normalizeURL(u string) (string, error) {
-	parsedURL, err := url.Parse(u)
+func normalizeURL(baseURL, inputURL string) (string, error) {
+	parsedBase, err := url.Parse(baseURL)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("error parsing base URL: %v", err)
 	}
 
-	strippedPath := strings.TrimRight(parsedURL.Path, "/")
-	cleanURL := fmt.Sprintf("%v%v", parsedURL.Host, strippedPath)
+	parsedURL, err := url.Parse(inputURL)
+	if err != nil {
+		return "", fmt.Errorf("error parsing URL: %v", err)
+	}
 
-	return cleanURL, nil
+	resolvedURL := parsedBase.ResolveReference(parsedURL)
+	resolvedURL.Path = strings.TrimRight(resolvedURL.Path, "/") // Strip trailing slash
+
+	res := fmt.Sprintf("%s%s", resolvedURL.Host, resolvedURL.Path)
+
+	return res, nil
 }

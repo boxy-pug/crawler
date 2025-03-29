@@ -17,9 +17,10 @@ func getURLsFromHTML(htmlBody, rawBaseURL string) ([]string, error) {
 	}
 	for n := range doc.Descendants() {
 		if n.Type == html.ElementNode && n.Data == "a" {
-			for _, at := range n.Attr {
-				res = append(res, at.Val)
-				//fmt.Printf("n.attr.val: %v\n", at.Val)
+			for _, attr := range n.Attr {
+				if attr.Key == "href" {
+					res = append(res, attr.Val)
+				}
 			}
 		}
 	}

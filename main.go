@@ -3,7 +3,16 @@ package main
 import (
 	"fmt"
 	"os"
+	"sync"
 )
+
+type config struct {
+	pages              map[string]int
+	baseURL            string
+	mu                 *sync.Mutex
+	concurrencyControl chan struct{}
+	wg                 *sync.WaitGroup
+}
 
 func main() {
 
@@ -20,14 +29,14 @@ func main() {
 
 	baseURL := args[1]
 
-	fmt.Printf("starting crawl of: %s\n", baseURL)
+	//fmt.Printf("starting crawl of: %s\n", baseURL)
 
-	body, err := getHTML(baseURL)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+	pages := make(map[string]int)
+
+	crawlPage(baseURL, baseURL, pages)
+
+	for key, val := range pages {
+		fmt.Printf("Found %d occurrences of page %s\n", val, key)
 	}
-
-	fmt.Println(body)
 
 }
