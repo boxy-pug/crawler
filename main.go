@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
 	"sync"
 )
@@ -14,6 +15,11 @@ type config struct {
 	concurrencyControl chan struct{}
 	wg                 *sync.WaitGroup
 	maxPages           int
+}
+
+type urlCount struct {
+	URL   string
+	Count int
 }
 
 func main() {
@@ -62,8 +68,46 @@ func main() {
 
 	cfg.wg.Wait()
 
-	for key, val := range cfg.pages {
-		fmt.Printf("Found %d occurrences of page %s\n", val, key)
+	cfg.printReport()
+
+	/*
+		for key, val := range cfg.pages {
+			fmt.Printf("Found %d occurrences of page %s\n", val, key)
+		}
+	*/
+
+}
+
+func (cfg *config) printReport() {
+	reportBorder := "============================="
+	fmt.Println(reportBorder)
+	fmt.Printf("REPORT for %s\n", cfg.baseURL)
+	fmt.Println(reportBorder)
+
+	sortedPages := sortPagesByVal(cfg.pages)
+
+	for _, page := range sortedPages {
+		fmt.Printf("Found %d internal links to https://%s\n", page.Count, page.URL)
 	}
+}
+
+func sortPagesByVal(pages map[string]int) []urlCount {
+	urlCounts := make([]urlCount, 0, len(pages))
+
+	for k, v := range pages {
+		urlCounts = append(urlCounts, urlCount{URL: k, Count: v})
+	}
+
+	// Sort with custom comparator
+	sort.Slice(urlCounts, func(i, j int) bool {
+		// First compare by count (higher first)
+		if urlCounts[i].Count != urlCounts[j].Count {
+			return urlCounts[i].Count > urlCounts[j].Count
+		}
+		// If counts are equal, sort alphabetically
+		return urlCounts[i].URL < urlCounts[j].URL
+	})
+
+	return urlCounts
 
 }
